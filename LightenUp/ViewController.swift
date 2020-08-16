@@ -7,69 +7,99 @@
 //
 
 import UIKit
-import SceneKit
-import ARKit
+import CoreML
+import Vision
+import Foundation
 
-class ViewController: UIViewController, ARSCNViewDelegate {
+class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
 
-    @IBOutlet var sceneView: ARSCNView!
+
+    let imagePicker = UIImagePickerController()
+    
+    let date = Date()
+    
+    @IBOutlet weak var imageView: UIImageView!
+    @IBOutlet weak var labelImage: UILabel!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // Set the view's delegate
-        sceneView.delegate = self
+        imagePicker.delegate = self
+        imagePicker.allowsEditing = true
+        imagePicker.sourceType = .camera
         
-        // Show statistics such as fps and timing information
-        sceneView.showsStatistics = true
-        
-        // Create a new scene
-        let scene = SCNScene(named: "art.scnassets/ship.scn")!
-        
-        // Set the scene to the view
-        sceneView.scene = scene
+        labelImage.text = date.description
     }
     
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        
-        // Create a session configuration
-        let configuration = ARWorldTrackingConfiguration()
 
-        // Run the view's session
-        sceneView.session.run(configuration)
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        
+    if let userPickedImage = info[ UIImagePickerController.InfoKey.originalImage ] as? UIImage {
+            
+            guard let ciImage = CIImage(image : userPickedImage) else {
+                       fatalError("Can not convert to CIImage")
+                   }
+        
+            detect(image: ciImage)
+        
+        imageView.image = userPickedImage
+        
+        imagePicker.dismiss(animated: true, completion: nil)
+        
+        }
     }
     
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
+    func detect (image: CIImage){
         
-        // Pause the view's session
-        sceneView.session.pause()
+        guard let model = try? VNCoreMLModel(for : Emotions().model) else {
+            
+            fatalError("Cannot import model")
+        }
+            
+        let request = VNCoreMLRequest(model: model) {(request, error)in
+            
+            let classification = request.results?.first as? VNClassificationObservation
+            
+            self.navigationItem.title =           classification?.identifier
+            
+            let emotion = classification?.identifier
+            
+            self.doSomething(emotion: emotion!)
+            
+        }
+
+            let handler = VNImageRequestHandler(ciImage: image)
+            
+            do {
+             try handler.perform([request])
+            }
+            catch {
+                print(error)
+            }
+        }
+    
+    func doSomething (emotion : String){
+        
+        switch emotion {
+            
+        case "Happy": break
+        
+            
+        default:
+            labelImage.text = "Dare to survive"
+                
+        }
+
+            
+        
+    }
+    
+    
+    @IBAction func cameraTapped(_ sender: UIBarButtonItem) {
+        
+        present(imagePicker, animated: true, completion: nil)
     }
 
-    // MARK: - ARSCNViewDelegate
-    
-/*
-    // Override to create and configure nodes for anchors added to the view's session.
-    func renderer(_ renderer: SCNSceneRenderer, nodeFor anchor: ARAnchor) -> SCNNode? {
-        let node = SCNNode()
-     
-        return node
-    }
-*/
-    
-    func session(_ session: ARSession, didFailWithError error: Error) {
-        // Present an error message to the user
-        
-    }
-    
-    func sessionWasInterrupted(_ session: ARSession) {
-        // Inform the user that the session has been interrupted, for example, by presenting an overlay
-        
-    }
-    
-    func sessionInterruptionEnded(_ session: ARSession) {
-        // Reset tracking and/or remove existing anchors if consistent tracking is required
-        
-    }
 }
+    
+
